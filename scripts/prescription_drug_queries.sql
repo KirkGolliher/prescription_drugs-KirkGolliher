@@ -36,8 +36,8 @@ ORDER BY total_claims DESC;
 
 SELECT specialty_description, COUNT(opioid_drug_flag='Y') as opioid_claims
 FROM prescriber
-FULL JOIN prescription USING (npi)
-FULL JOIN drug USING(drug_name)
+INNER JOIN prescription USING (npi)
+INNER JOIN drug USING(drug_name)
 WHERE total_claim_count IS NOT NULL
 GROUP BY specialty_description
 ORDER BY opioid_claims DESC;
@@ -88,15 +88,14 @@ SELECT drug_name,
 FROM drug;
 
 
---Q4b
+--Q4b TRY SUBQUERY
 
 SELECT SUM(total_drug_cost)::money AS total_cost,
 	CASE WHEN opioid_drug_flag='Y' THEN 'opioid'
 		 WHEN antibiotic_drug_flag='Y' THEN 'antibiotic'
 	ELSE 'neither' END AS drug_type
 FROM drug
-FULL JOIN prescription USING(drug_name)
-WHERE total_drug_cost IS NOT NULL
+INNER JOIN prescription USING(drug_name)
 GROUP BY drug_type
 ORDER BY total_cost DESC;
 --Answer: More was spent on OPIOIDS - $105,080,626.37
@@ -117,4 +116,96 @@ SELECT cbsaname,SUM(population) AS total_pop
 FROM population
 INNER JOIN cbsa USING(fipscounty)
 GROUP BY cbsaname
+ORDER BY total_pop;
+--Answer: highest population:
+--Nashville-Davidson--Murfreesboro--Franklin, TN with 1830410
+--Lowest population:
+--Morristown, TN with 116352
+
+
+--Q5c
+
+SELECT county,SUM(population) as total_pop
+FROM cbsa
+FULL JOIN fips_county USING(fipscounty)
+FULL JOIN population USING(fipscounty)
+WHERE cbsaname IS NULL
+AND population IS NOT NULL
+GROUP BY county
 ORDER BY total_pop DESC;
+--Answer: Sevier with 95523
+
+
+--Q6a
+
+SELECT drug_name,SUM(total_claim_count) AS total_claims
+FROM prescription
+WHERE total_claim_count>=3000
+GROUP BY drug_name
+ORDER BY total_claims DESC;
+
+
+--Q6b
+
+SELECT drug_name,SUM(total_claim_count) AS total_claims,
+	CASE WHEN opioid_drug_flag='Y' THEN 'opioid'
+		ELSE 'NA' END AS opioid
+FROM prescription
+INNER JOIN drug USING (drug_name)
+WHERE total_claim_count>=3000
+GROUP BY drug_name, opioid
+ORDER BY total_claims DESC;
+
+
+--Q6c
+
+SELECT drug_name,
+	nppes_provider_first_name,
+	nppes_provider_last_org_name,
+	total_claim_count,
+	CASE WHEN opioid_drug_flag='Y' THEN 'opioid'
+		ELSE '' END AS opioid
+FROM prescription
+INNER JOIN drug USING (drug_name)
+INNER JOIN prescriber USING (npi)
+WHERE total_claim_count>=3000
+ORDER BY total_claim_count DESC;
+
+
+--Q7a CROSS JOIN, REDO IT
+
+WITH drugs AS (SELECT npi,drug_name,opioid_drug_flag
+		   FROM drug
+		   INNER JOIN prescription USING(drug_name))
+
+SELECT *
+FROM prescriber
+INNER JOIN drugs USING (npi)
+WHERE specialty_description='Pain Management'
+AND nppes_provider_city='NASHVILLE'
+AND opioid_drug_flag='Y';
+
+
+--Q7b
+
+SELECT npi,drug_name,total_claim_count
+FROM prescriber
+FULL JOIN prescription USING(npi)
+FULL JOIN drug USING(drug_name)
+WHERE specialty_description='Pain Management'
+AND nppes_provider_city='NASHVILLE'
+AND opioid_drug_flag='Y'
+ORDER BY total_claim_count DESC;
+
+
+--Q7a
+
+WITH opioids AS (SELECT*
+	FROM drug
+	WHERE opioid_drug_flag='Y')
+
+SELECT p1.npi,p1.specialty_description,
+FROM prescriber as p1
+INNER JOIN prescriber as p2 USING(npi)
+WHERE p1.specialty_description='Pain Management'
+AND p1.nppes_provider_city='NASHVILLE'
